@@ -1,3 +1,7 @@
+# Third party
+from decouple import config
+
+# Local
 from settings.base import *  # noqa
 
 # ----------------------------------------------
@@ -11,12 +15,17 @@ ASGI_APPLICATION = 'deploy.prod.asgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'dtalpu6hl0c5j',
-        'USER': 'ovfcpsfpknvmxc',
-        'PASSWORD': '0dc04a3857bd803bb3d7d11480c3f6bf360daee45a21a9f21ba75c255ce29adf',  # noqa
-        'HOST': 'ec2-44-195-132-31.compute-1.amazonaws.com',
-        'PORT': 5432
+        'NAME': config("DB_NAME", cast=str),
+        'USER': config("DB_USER", cast=str),
+        'PASSWORD': config("DB_POSTGRESQL_PASSWORD", cast=str),
+        'HOST': config("DB_HOST", cast=str),
+        'PORT': config("DB_PORT", cast=int)
     }
 }
-ALLOWED_HOSTS = []
-INTERNAL_IPS = []
+ALLOWED_HOSTS = [
+    "127.0.0.1",
+    "localhost",
+]
+INTERNAL_IPS = [
+    "127.0.0.1",
+]
