@@ -15,6 +15,7 @@ sys.path.append(BASE_DIR)
 sys.path.append(
     os.path.join(BASE_DIR, "apps")
 )
+AUTH_USER_MODEL = 'auths.CustomUser'
 ROOT_URLCONF = 'urls.urls'
 
 # ----------------------------------------------
@@ -35,7 +36,11 @@ DJANGO_AND_THIRD_PARTY_APPS = [
     # 'debug_toolbar',
     # 'django_extensions',
 ]
-PROJECT_APPS = []
+PROJECT_APPS = [
+    "abstracts.apps.AbstractsConfig",
+    "auths.apps.AuthsConfig",
+    "locations.apps.LocationsConfig",
+]
 INSTALLED_APPS = DJANGO_AND_THIRD_PARTY_APPS + PROJECT_APPS
 
 # ----------------------------------------------
@@ -85,7 +90,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # ----------------------------------------------
 # Internationalization
 #
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ru'
 TIME_ZONE = 'Asia/Almaty'
 USE_I18N = True
 USE_L10N = True
