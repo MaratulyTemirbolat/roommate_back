@@ -33,7 +33,7 @@ DJANGO_AND_THIRD_PARTY_APPS = [
     # 'corsheaders',
     'rest_framework',
     # 'rest_framework_simplejwt',
-    # 'debug_toolbar',
+    'debug_toolbar',
     # 'django_extensions',
 ]
 PROJECT_APPS = [
@@ -55,7 +55,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 
-    # 'debug_toolbar.middleware.DebugToolbarMiddleware',
+    'debug_toolbar.middleware.DebugToolbarMiddleware',
 ]
 TEMPLATES = [
     {
