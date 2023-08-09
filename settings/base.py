@@ -30,11 +30,11 @@ DJANGO_AND_THIRD_PARTY_APPS = [
     'django.contrib.staticfiles',
 
     # 'channels',
-    # 'corsheaders',
+    'corsheaders',
     'rest_framework',
-    # 'rest_framework_simplejwt',
+    'rest_framework_simplejwt',
     'debug_toolbar',
-    # 'django_extensions',
+    'django_extensions',
 ]
 PROJECT_APPS = [
     "abstracts.apps.AbstractsConfig",
@@ -47,6 +47,7 @@ INSTALLED_APPS = DJANGO_AND_THIRD_PARTY_APPS + PROJECT_APPS
 # Middleware | Template | Validators
 #
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',

@@ -1,3 +1,10 @@
+# Third party
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView,
+)
+
 # Django
 from django.contrib import admin
 from django.conf import settings
@@ -8,7 +15,25 @@ from django.urls import (
 )
 
 urlpatterns = [
-    path(settings.ADMIN_SITE_URL, admin.site.urls),
+    path(
+        route=settings.ADMIN_SITE_URL,
+        view=admin.site.urls
+    ),
+    path(
+        route='api/token/',
+        view=TokenObtainPairView.as_view(),
+        name='token_obtain_pair'
+    ),
+    path(
+        route='api/token/refresh/',
+        view=TokenRefreshView.as_view(),
+        name='token_refresh'
+    ),
+    path(
+        route='api/token/verify/',
+        view=TokenVerifyView.as_view(),
+        name='token_verify'
+    ),
 ] + static(
     prefix=settings.STATIC_URL,
     document_root=settings.STATIC_ROOT
@@ -19,5 +44,8 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += [
-        path('__debug__/', include('debug_toolbar.urls')),
+        path(
+            route='__debug__/',
+            view=include('debug_toolbar.urls')
+        ),
     ]
