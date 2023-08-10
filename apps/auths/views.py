@@ -15,10 +15,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.viewsets import ViewSet
 from rest_framework.request import Request as DRF_Request
 from rest_framework.response import Response as DRF_Response
-from rest_framework.permissions import (
-    AllowAny,
-    IsAuthenticated,
-)
+from rest_framework.permissions import AllowAny
 from rest_framework.decorators import action
 from rest_framework.status import (
     HTTP_404_NOT_FOUND,
@@ -63,7 +60,11 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
     __user_list_params: Tuple[str] = ("gender",)
     __location_list_params: Tuple[str] = ("city",)
 
-    def get_queryset(self, is_deleted: bool = False, is_active: bool = True) -> QuerySet[CustomUser]:
+    def get_queryset(
+        self,
+        is_deleted: bool = False,
+        is_active: bool = True
+    ) -> QuerySet[CustomUser]:
         """Get deleted/non-deleted queryset with CustUser instances."""
         return self.queryset.get_deleted().filter(is_active=is_active) \
             if is_deleted else self.queryset.get_not_deleted().filter(
