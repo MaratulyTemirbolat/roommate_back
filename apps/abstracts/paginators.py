@@ -1,9 +1,11 @@
 """Abstract custom paginators."""
+# Python
 from typing import (
     Dict,
     Any,
 )
 
+# Rest Framework
 from rest_framework.response import Response as DRF_Response
 from rest_framework.pagination import (
     PageNumberPagination,
@@ -15,7 +17,7 @@ from rest_framework.utils.serializer_helpers import ReturnList
 class AbstractPageNumberPaginator(PageNumberPagination):
     """AbstractPageNumberPaginator."""
 
-    page_size: int = 15
+    page_size: int = 25
     page_size_query_param: str = 'page_size'
     page_query_param: str = 'page'
     max_page_size: int = 10
