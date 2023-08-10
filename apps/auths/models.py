@@ -21,6 +21,7 @@ from django.db.models import (
     ImageField,
     ManyToManyField,
     QuerySet,
+    Q,
 )
 
 # Project
@@ -132,6 +133,23 @@ class CustomUserManager(BaseUserManager):
         return self.filter(
             datetime_deleted__isnull=True
         )
+
+    def get_by_email_phone_telegram(
+        self,
+        phone_email_telegram: str
+    ) -> Optional["CustomUser"]:
+        """Get CustomUser instance by email phone or telegram username."""
+        custom_user: Optional["CustomUser"] = None
+
+        try:
+            custom_user = self.get(
+                Q(email=phone_email_telegram) |
+                Q(phone=phone_email_telegram) |
+                Q(telegram_username=phone_email_telegram)
+            )
+            return custom_user
+        except CustomUser.DoesNotExist:
+            return None
 
 
 class CustomUser(
