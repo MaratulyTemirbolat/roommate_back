@@ -14,6 +14,17 @@ from django.urls import (
     include
 )
 
+# Rest Framework
+from rest_framework.routers import DefaultRouter
+
+# Project
+from apps.auths.views import CustomUserViewSet
+
+
+router: DefaultRouter = DefaultRouter(trailing_slash=False)
+
+router.register('auths/users', CustomUserViewSet)
+
 urlpatterns = [
     path(
         route=settings.ADMIN_SITE_URL,
@@ -40,7 +51,12 @@ urlpatterns = [
 ) + static(
     prefix=settings.MEDIA_URL,
     document_root=settings.MEDIA_ROOT
-)
+) + [
+    path(
+        route="api/v1/",
+        view=include(router.urls)
+    )
+]
 
 if settings.DEBUG:
     urlpatterns += [
