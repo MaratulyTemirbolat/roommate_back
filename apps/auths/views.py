@@ -7,13 +7,20 @@ from typing import (
     Any,
 )
 
+# Third party
+from rest_framework_simplejwt.tokens import RefreshToken
+
 # Rest Framework
 from rest_framework.viewsets import ViewSet
 from rest_framework.request import Request as DRF_Request
 from rest_framework.response import Response as DRF_Response
 from rest_framework.permissions import AllowAny
+from rest_framework.decorators import action
 from rest_framework.status import (
     HTTP_404_NOT_FOUND,
+    HTTP_403_FORBIDDEN,
+    HTTP_400_BAD_REQUEST,
+    HTTP_200_OK,
 )
 
 # Django
@@ -22,6 +29,7 @@ from django.db.models import (
     Manager,
     Max,
 )
+from django.contrib.auth import login
 
 # Project
 from auths.models import CustomUser
@@ -29,6 +37,7 @@ from auths.serializers import (
     CustomUserBaseSerializer,
     CustomUserListSerializer,
     CustomUserDetailSerializer,
+    CreateCustomUserSerializer,
 )
 from locations.models import District
 from abstracts.handlers import DRFResponseHandler
@@ -159,3 +168,136 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
             data=obj,
             serializer_class=CustomUserDetailSerializer
         )
+
+    @action(
+        methods=["POST"],
+        url_path="register_user",
+        detail=False,
+        permission_classes=(AllowAny,)
+    )
+    def register_user(
+        self,
+        request: DRF_Request,
+        *args: Tuple[str],
+        **kwargs: Dict[str, Any]
+    ) -> DRF_Response:
+        """Handle POST-request to register new user with provided data."""
+        is_superuser: bool = bool(
+            request.data.get("is_superuser", False)
+        )
+        is_staff: bool = True if is_superuser else False
+        if is_superuser and not request.user.is_superuser:
+            return DRF_Response(
+                data={
+                    "response": "Вы не админ, чтобы создать супер пользователя"
+                },
+                status=HTTP_403_FORBIDDEN
+            )
+        serializer: CreateCustomUserSerializer = CreateCustomUserSerializer(
+            data=request.data
+        )
+        new_password: Optional[str] = request.data.get("password", None)
+        if not new_password or not isinstance(new_password, str):
+            return DRF_Response(
+                data={
+                    "password": "Пароль обязан быть в формате строки"
+                },
+                status=HTTP_400_BAD_REQUEST
+            )
+        valid: bool = serializer.is_valid()
+        if valid:
+            new_cust_user: CustomUser = CustomUser(
+                **request.data,
+                is_staff=is_staff
+            )
+            new_cust_user.set_password(new_password)
+            new_cust_user.save()
+            refresh_token: RefreshToken = RefreshToken.for_user(
+                user=new_cust_user
+            )
+            response: DRF_Response = self.retrieve(
+                request=request,
+                pk=new_cust_user.id,
+                *args,
+                **kwargs
+            )
+            response.data.setdefault("refresh", str(refresh_token))
+            response.data.setdefault("access", str(refresh_token.access_token))
+            login(
+                request=request,
+                user=new_cust_user
+            )
+            return response
+        return DRF_Response(
+            data=serializer.errors,
+            status=HTTP_400_BAD_REQUEST
+        )
+
+    @action(
+        methods=["POST"],
+        detail=False,
+        url_path="login",
+        url_name="login",
+        permission_classes=(AllowAny,)
+    )
+    def login(
+        self,
+        request: DRF_Request,
+        *args: Tuple[Any],
+        **kwargs: Dict[str, Any]
+    ) -> DRF_Response:
+        """Handle POST-request to login the already existed user."""
+
+        if request.user.is_authenticated:
+            return DRF_Response(
+                data={
+                    "response": "Вы уже авторизованы!"
+                },
+                status=HTTP_403_FORBIDDEN
+            )
+        phone_email_telegram: str = request.data.get("login_data", "")
+        password: str = request.data.get("password", "")
+        if not phone_email_telegram or not password or \
+                not isinstance(phone_email_telegram, str) or \
+                not isinstance(password, str):
+            return DRF_Response(
+                data={
+                    "response": "Данные должны быть предоставлены строками"
+                },
+                status=HTTP_400_BAD_REQUEST
+            )
+
+        custom_user: Optional[CustomUser] = \
+            CustomUser.objects.get_by_email_phone_telegram(
+                phone_email_telegram=phone_email_telegram
+            )
+        same_passwords: bool = custom_user.check_password(
+            raw_password=password
+        )
+        if not same_passwords:
+            return DRF_Response(
+                data={"response": "Вы ввели неправильный пароль"},
+                status=HTTP_403_FORBIDDEN
+            )
+        if custom_user.datetime_deleted:
+            return DRF_Response(
+                data={"response": "Извините, но ваше пользователь удалён"},
+                status=HTTP_403_FORBIDDEN
+            )
+        login(
+            request=request,
+            user=custom_user
+        )
+        refresh_token: RefreshToken = RefreshToken.for_user(user=custom_user)
+        det_ser: CustomUserDetailSerializer = CustomUserDetailSerializer(
+            instance=custom_user,
+            many=False
+        )
+        resulted_data: dict[str, Any] = det_ser.data.copy()
+        resulted_data.setdefault("refresh", str(refresh_token))
+        resulted_data.setdefault("access", str(refresh_token.access_token))
+        response: DRF_Response = DRF_Response(
+            data=resulted_data,
+            status=HTTP_200_OK
+        )
+        return response
