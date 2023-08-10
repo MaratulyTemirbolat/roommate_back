@@ -89,3 +89,21 @@ class CustomUserDetailSerializer(CustomUserBaseSerializer):
             "is_deleted",
             "datetime_created",
         )
+
+
+class CreateCustomUserSerializer(CustomUserBaseSerializer):
+    """CreateCustomUserSerializer."""
+
+    class Meta:
+        """Customization of the Serializer."""
+
+        model: CustomUser = CustomUser
+        fields: tuple[str] = (
+            "email",
+            "phone",
+            "first_name",
+            "telegram_username",
+            "gender",
+            "month_budjet",
+            "password",
+        )
