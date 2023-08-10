@@ -2,6 +2,7 @@
 from typing import (
     Tuple,
     Optional,
+    Union,
     List,
     Dict,
     Any,
@@ -14,7 +15,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.viewsets import ViewSet
 from rest_framework.request import Request as DRF_Request
 from rest_framework.response import Response as DRF_Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import (
+    AllowAny,
+    IsAuthenticated,
+)
 from rest_framework.decorators import action
 from rest_framework.status import (
     HTTP_404_NOT_FOUND,
@@ -39,6 +43,10 @@ from auths.serializers import (
     CustomUserDetailSerializer,
     CreateCustomUserSerializer,
 )
+from auths.permissions import (
+    IsNonDeletedUser,
+    IsOwnerUser,
+)
 from locations.models import District
 from abstracts.handlers import DRFResponseHandler
 from abstracts.mixins import ModelInstanceMixin
@@ -55,11 +63,11 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
     __user_list_params: Tuple[str] = ("gender",)
     __location_list_params: Tuple[str] = ("city",)
 
-    def get_queryset(self, is_deleted: bool = False) -> QuerySet[CustomUser]:
+    def get_queryset(self, is_deleted: bool = False, is_active: bool = True) -> QuerySet[CustomUser]:
         """Get deleted/non-deleted queryset with CustUser instances."""
-        return self.queryset.get_deleted().filter(is_active=True) \
+        return self.queryset.get_deleted().filter(is_active=is_active) \
             if is_deleted else self.queryset.get_not_deleted().filter(
-                is_active=True
+                is_active=is_active
             )
 
     def __get_district_ids(
@@ -301,3 +309,85 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
             status=HTTP_200_OK
         )
         return response
+
+    @action(
+        methods=["PATCH"],
+        detail=True,
+        url_path="deactivate",
+        url_name="deactivate",
+        permission_classes=(IsNonDeletedUser, IsOwnerUser,)
+    )
+    def deactivate_user(
+        self,
+        request: DRF_Request,
+        pk: str,
+        *args: Tuple[Any],
+        **kwargs: Dict[str, Any]
+    ) -> DRF_Response:
+        """Handle PATCH request to deactivate already logged in user."""
+        obj_resp: Union[CustomUser, DRF_Response]
+        is_existed: bool = False
+        obj_resp, is_existed = self.get_obj_or_response(
+            request=request,
+            pk=pk,
+            class_name=CustomUser,
+            queryset=self.queryset.get_not_deleted()
+        )
+        if not is_existed:
+            return obj_resp
+        self.check_object_permissions(request=request, obj=obj_resp)
+        if not obj_resp.is_active:
+            return DRF_Response(
+                data={
+                    "response": "Ваш аккаунт уже итак деактивирован."
+                },
+                status=HTTP_403_FORBIDDEN
+            )
+        obj_resp.deactivate()
+        return DRF_Response(
+            data={
+                "response": "Ваш аккаунт успешно деактивирован"
+            },
+            status=HTTP_200_OK
+        )
+
+    @action(
+        methods=["PATCH"],
+        detail=True,
+        url_path="activate",
+        url_name="activate",
+        permission_classes=(AllowAny,)
+    )
+    def activate_user(
+        self,
+        request: DRF_Request,
+        pk: str,
+        *args: Tuple[Any],
+        **kwargs: Dict[str, Any]
+    ) -> DRF_Response:
+        """Handle PATCH request to activate already logged in user."""
+        obj_resp: Union[CustomUser, DRF_Response]
+        is_existed: bool = False
+        obj_resp, is_existed = self.get_obj_or_response(
+            request=request,
+            pk=pk,
+            class_name=CustomUser,
+            queryset=self.queryset.get_not_deleted()
+        )
+        if not is_existed:
+            return obj_resp
+        self.check_object_permissions(request=request, obj=obj_resp)
+        if obj_resp.is_active:
+            return DRF_Response(
+                data={
+                    "response": "Ваш аккаунт уже итак активирован."
+                },
+                status=HTTP_403_FORBIDDEN
+            )
+        obj_resp.activate()
+        return DRF_Response(
+            data={
+                "response": "Ваш аккаунт успешно активирован"
+            },
+            status=HTTP_200_OK
+        )
