@@ -59,3 +59,33 @@ class CustomUserListSerializer(CustomUserBaseSerializer):
             "is_deleted",
             "datetime_created",
         )
+
+
+class CustomUserDetailSerializer(CustomUserBaseSerializer):
+    """CustomUserDetailSerializer."""
+
+    districts: DistrictForeignModelSerializer = DistrictForeignModelSerializer(
+        many=True
+    )
+
+    class Meta:
+        """Customization for the serializer."""
+
+        model: CustomUser = CustomUser
+        fields: Union[Tuple[str], str] = (
+            "id",
+            "email",
+            "phone",
+            "first_name",
+            "telegram_username",
+            "gender",
+            "is_active",
+            "month_budjet",
+            "comment",
+            "photo",
+            "districts",
+            "is_superuser",
+            "last_login",
+            "is_deleted",
+            "datetime_created",
+        )

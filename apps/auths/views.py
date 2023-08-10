@@ -1,6 +1,7 @@
 # Python
 from typing import (
     Tuple,
+    Optional,
     List,
     Dict,
     Any,
@@ -11,12 +12,15 @@ from rest_framework.viewsets import ViewSet
 from rest_framework.request import Request as DRF_Request
 from rest_framework.response import Response as DRF_Response
 from rest_framework.permissions import AllowAny
+from rest_framework.status import (
+    HTTP_404_NOT_FOUND,
+)
 
 # Django
 from django.db.models import (
     QuerySet,
     Manager,
-    Max,    
+    Max,
 )
 
 # Project
@@ -24,6 +28,7 @@ from auths.models import CustomUser
 from auths.serializers import (
     CustomUserBaseSerializer,
     CustomUserListSerializer,
+    CustomUserDetailSerializer,
 )
 from locations.models import District
 from abstracts.handlers import DRFResponseHandler
@@ -125,3 +130,32 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
             paginator=AbstractPageNumberPaginator(),
         )
         return response
+
+    def retrieve(
+        self,
+        request: DRF_Request,
+        pk: str,
+        *args: Tuple[Any],
+        **kwargs: Dict[str, Any]
+    ) -> DRF_Response:
+        """Handle GET-request with provided ID to get user."""
+        obj: Optional[CustomUser] = self.get_queryset_instance(
+            class_name=CustomUser,
+            queryset=self.get_queryset().prefetch_related(
+                "districts",
+                "districts__city",
+            ),
+            pk=pk
+        )
+        if not obj:
+            return DRF_Response(
+                data={
+                    "response": f"Пользователь с ID: {pk} не найден или удалён"
+                },
+                status=HTTP_404_NOT_FOUND
+            )
+        return self.get_drf_response(
+            request=request,
+            data=obj,
+            serializer_class=CustomUserDetailSerializer
+        )
