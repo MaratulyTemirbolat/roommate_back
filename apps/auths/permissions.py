@@ -36,3 +36,17 @@ class IsOwnerUser(BasePermission):
     ) -> bool:
         """Check whether the user is owner of himself/herself."""
         return False if obj.id != request.user.id else True
+
+
+class IsActiveAccount(BasePermission):
+    """Class for checking is the user's account active or not."""
+
+    message: str = "Извините, но ваш аккаунт является неактивным. "
+    "Чтобы совершить данную операцию, вам необходимо его активировать."
+
+    def has_permission(self, request: DRF_Request, view: Any):
+        return bool(
+            request.user and
+            request.user.is_authenticated and
+            request.user.is_active_account
+        )

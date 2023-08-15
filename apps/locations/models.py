@@ -47,6 +47,7 @@ class District(AbstractDateTime):
     city: City = ForeignKey(
         to=City,
         on_delete=CASCADE,
+        related_name="districts",
         verbose_name="Город"
     )
 

@@ -49,7 +49,7 @@ class CustomUserListSerializer(CustomUserBaseSerializer):
             "first_name",
             "telegram_username",
             "gender",
-            "is_active",
+            "is_active_account",
             "month_budjet",
             "comment",
             "photo",

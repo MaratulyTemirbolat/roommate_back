@@ -15,7 +15,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.viewsets import ViewSet
 from rest_framework.request import Request as DRF_Request
 from rest_framework.response import Response as DRF_Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import (
+    AllowAny,
+    IsAuthenticated,
+)
 from rest_framework.decorators import action
 from rest_framework.status import (
     HTTP_404_NOT_FOUND,
@@ -43,7 +46,9 @@ from auths.serializers import (
 from auths.permissions import (
     IsNonDeletedUser,
     IsOwnerUser,
+    IsActiveAccount,
 )
+from auths.utils import get_valid_request_data
 from locations.models import District
 from abstracts.handlers import DRFResponseHandler
 from abstracts.mixins import ModelInstanceMixin
@@ -52,10 +57,10 @@ from abstracts.tools import get_filled_params_dict
 
 
 class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
-    """Serializer for CustomUser model."""
+    """ViewSet for CustomUser model."""
 
     queryset: Manager = CustomUser.objects
-    permission_classes: Tuple[Any] = (AllowAny,)
+    permission_classes: Tuple[Any] = (IsNonDeletedUser, IsActiveAccount,)
     serializer_class: CustomUserBaseSerializer = CustomUserBaseSerializer
     __user_list_params: Tuple[str] = ("gender",)
     __location_list_params: Tuple[str] = ("city",)
@@ -63,12 +68,14 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
     def get_queryset(
         self,
         is_deleted: bool = False,
-        is_active: bool = True
+        is_active_account: bool = True
     ) -> QuerySet[CustomUser]:
         """Get deleted/non-deleted queryset with CustUser instances."""
-        return self.queryset.get_deleted().filter(is_active=is_active) \
-            if is_deleted else self.queryset.get_not_deleted().filter(
-                is_active=is_active
+        return self.queryset.get_deleted().filter(
+            is_active_account=is_active_account
+        ) if is_deleted \
+            else self.queryset.get_not_deleted().filter(
+                is_active_account=is_active_account
             )
 
     def __get_district_ids(
@@ -83,7 +90,7 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
         req_districts: List[str] = query_params.get(
             "districts",
             [""]
-        )[0].split(",")
+        )
         district_ids: Tuple[int] = tuple((
             District.objects.filter(
                 **location_dict_params,
@@ -121,7 +128,6 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
                     ) * 1.2]
                 )[0]
             )
-
         district_ids: Tuple[int] = self.__get_district_ids(**query_params)
         user_queryset: QuerySet[CustomUser] = CustomUser.objects.filter(
             **user_dict_params,
@@ -131,6 +137,15 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
             "districts",
             "districts__city",
         )
+        if user_queryset.count() == 0:
+            user_queryset = CustomUser.objects.filter(
+                **user_dict_params,
+                month_budjet__lte=int(final_budjet*1.2),
+                districts__in=district_ids
+            ).prefetch_related(
+                "districts",
+                "districts__city",
+            )
         return user_queryset
 
     def list(
@@ -198,14 +213,23 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
         if is_superuser and not request.user.is_superuser:
             return DRF_Response(
                 data={
-                    "response": "Вы не админ, чтобы создать супер пользователя"
+                    "response": [
+                        {
+                            "permission": "Вы не админ, "
+                            "чтобы создать супер пользователя"
+                        }
+                    ]
                 },
                 status=HTTP_403_FORBIDDEN
             )
-        serializer: CreateCustomUserSerializer = CreateCustomUserSerializer(
-            data=request.data
+        resulted_data: Dict[str, Any] = get_valid_request_data(
+            request_data=request.data.copy(),
+            single_keys=CustomUser.SINGLE_FIELDS
         )
-        new_password: Optional[str] = request.data.get("password", None)
+        serializer: CreateCustomUserSerializer = CreateCustomUserSerializer(
+            data=resulted_data
+        )
+        new_password: Optional[str] = resulted_data.get("password", None)
         if not new_password or not isinstance(new_password, str):
             return DRF_Response(
                 data={
@@ -216,7 +240,7 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
         valid: bool = serializer.is_valid()
         if valid:
             new_cust_user: CustomUser = CustomUser(
-                **request.data,
+                **resulted_data,
                 is_staff=is_staff
             )
             new_cust_user.set_password(new_password)
@@ -280,6 +304,13 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
             CustomUser.objects.get_by_email_phone_telegram(
                 phone_email_telegram=phone_email_telegram
             )
+        if not custom_user:
+            return DRF_Response(
+                data={
+                    "response": "Пользователя с такими данными не найден"
+                },
+                status=HTTP_404_NOT_FOUND
+            )
         same_passwords: bool = custom_user.check_password(
             raw_password=password
         )
@@ -316,7 +347,7 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
         detail=True,
         url_path="deactivate",
         url_name="deactivate",
-        permission_classes=(IsNonDeletedUser, IsOwnerUser,)
+        permission_classes=(IsNonDeletedUser, IsActiveAccount, IsOwnerUser,)
     )
     def deactivate_user(
         self,
@@ -357,7 +388,7 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
         detail=True,
         url_path="activate",
         url_name="activate",
-        permission_classes=(AllowAny,)
+        permission_classes=(IsNonDeletedUser, IsOwnerUser,)
     )
     def activate_user(
         self,
@@ -391,4 +422,24 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
                 "response": "Ваш аккаунт успешно активирован"
             },
             status=HTTP_200_OK
+        )
+
+    @action(
+        methods=["GET"],
+        url_path="personal_account",
+        detail=False,
+        permission_classes=(IsAuthenticated, IsNonDeletedUser, )
+    )
+    def get_personal_account(
+        self,
+        request: DRF_Request,
+        *args: Tuple[Any],
+        **kwargs: Dict[Any, Any]
+    ) -> DRF_Response:
+        """Handle GET-request to obtain user's personal data."""
+        return self.retrieve(
+            request=request,
+            pk=request.user.id,
+            *args,
+            **kwargs
         )

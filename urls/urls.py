@@ -19,11 +19,13 @@ from rest_framework.routers import DefaultRouter
 
 # Project
 from apps.auths.views import CustomUserViewSet
+from apps.locations.views import CityViewSet
 
 
 router: DefaultRouter = DefaultRouter(trailing_slash=False)
 
 router.register('auths/users', CustomUserViewSet)
+router.register("locations/city", CityViewSet)
 
 urlpatterns = [
     path(

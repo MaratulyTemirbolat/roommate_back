@@ -162,6 +162,12 @@ class CustomUser(
     FIRST_NAME_LEN = 254
     TELEGRAM_USERNAME_LEN = 254
     GENDER_MAX_LEN = 1
+    SINGLE_FIELDS = (
+        "email", "phone",
+        "first_name", "telegram_username",
+        "gender", "month_budjet",
+        "comment", "password",
+    )
     GENDERS = (
         ("M", "Male"),
         ("F", "Female"),
@@ -230,6 +236,10 @@ class CustomUser(
         default=False,
         verbose_name="Статус менеджера"
     )
+    is_active_account: BooleanField = BooleanField(
+        default=True,
+        verbose_name="Состояние аккаунта"
+    )
     objects = CustomUserManager()
 
     USERNAME_FIELD = 'email'
@@ -255,18 +265,18 @@ class CustomUser(
 
     def deactivate(self, *args: tuple[Any], **kwargs: dict[str, Any]) -> None:
         """Deactivate user."""
-        if self.is_active:
-            self.is_active = False
+        if self.is_active_account:
+            self.is_active_account = False
             self.save(
-                update_fields=['is_active']
+                update_fields=['is_active_account']
             )
 
     def activate(self, *args: tuple[Any], **kwargs: dict[str, Any]) -> None:
         """Actovate user."""
-        if not self.is_active:
-            self.is_active = True
+        if not self.is_active_account:
+            self.is_active_account = True
             self.save(
-                update_fields=['is_active']
+                update_fields=['is_active_account']
             )
 
     def recover(self, *args: tuple[Any], **kwargs: dict[str, Any]) -> None:
