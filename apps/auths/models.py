@@ -209,6 +209,7 @@ class CustomUser(
         max_length=TELEGRAM_USERNAME_LEN,
         db_index=True,
         unique=True,
+        null=True,
         verbose_name="Имя пользователя Telegram"
     )
     telegram_user_id: BigIntegerField = BigIntegerField(
@@ -255,6 +256,10 @@ class CustomUser(
     is_active_account: BooleanField = BooleanField(
         default=True,
         verbose_name="Состояние аккаунта"
+    )
+    is_confirmed_account: BooleanField = BooleanField(
+        default=False,
+        verbose_name="Подтверждение, что действительно человек"
     )
     objects = CustomUserManager()
 
@@ -315,4 +320,12 @@ class CustomUser(
                 name=f"{self.email}.jpg",
                 content=File(img_temp),
                 save=True
+            )
+
+    def confirm_account(self) -> None:
+        """Confirm user's account as a real person."""
+        if not self.is_confirmed_account:
+            self.is_confirmed_account = True
+            self.save(
+                update_fields=['is_confirmed_account']
             )

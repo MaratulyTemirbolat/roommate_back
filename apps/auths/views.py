@@ -18,6 +18,7 @@ from rest_framework.response import Response as DRF_Response
 from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated,
+    IsAdminUser,
 )
 from rest_framework.decorators import action
 from rest_framework.status import (
@@ -520,4 +521,57 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
             pk=request.user.id,
             *args,
             **kwargs
+        )
+
+    @action(
+        methods=["PATCH"],
+        detail=True,
+        url_path="confirm_account",
+        url_name="confirm_account",
+        permission_classes=(
+            IsAdminUser,
+            IsNonDeletedUser,
+            IsActiveAccount
+        )
+    )
+    def confirm_account(
+        self,
+        request: DRF_Request,
+        pk: str,
+        *args: Tuple[Any],
+        **kwargs: Dict[str, Any]
+    ) -> None:
+        """Confirm user's account."""
+        found_user: Optional[CustomUser] = self.get_queryset_instance(
+            class_name=CustomUser,
+            queryset=self.get_queryset(),
+            pk=pk
+        )
+        if not found_user:
+            return DRF_Response(
+                data={
+                    "detail": "Пользователь не найден. Возможные причины: "
+                    "1. Аккаунт удалён"
+                    "2. Аккаунт является неактивным"
+                    "3. Пользователь не зарегестрирован"
+                },
+                status=HTTP_404_NOT_FOUND
+            )
+        if found_user.is_confirmed_account:
+            return DRF_Response(
+                data={
+                    "detail": "Ваш аккаунт итак подтвержден. Нет "
+                    "необходимости делать это снова."
+                },
+                status=HTTP_400_BAD_REQUEST
+            )
+        found_user.confirm_account()
+        return DRF_Response(
+            data={
+                "detail": f"Аккаунт пользователя {found_user.first_name} "
+                "успешно подтвержден :) Приятного поиска будущих соседей",
+                "data": {
+                    "telegram_id": found_user.telegram_user_id
+                },
+            }
         )
