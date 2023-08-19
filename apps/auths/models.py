@@ -3,6 +3,10 @@ from typing import (
     Optional,
     Any,
 )
+from requests import (
+    Response,
+    get,
+)
 
 # Django
 from django.contrib.auth.models import (
@@ -10,6 +14,8 @@ from django.contrib.auth.models import (
     PermissionsMixin,
     BaseUserManager,
 )
+from django.core.files import File
+from django.core.files.temp import NamedTemporaryFile
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db.models import (
@@ -17,6 +23,7 @@ from django.db.models import (
     CharField,
     BooleanField,
     IntegerField,
+    BigIntegerField,
     TextField,
     ImageField,
     ManyToManyField,
@@ -162,11 +169,13 @@ class CustomUser(
     FIRST_NAME_LEN = 254
     TELEGRAM_USERNAME_LEN = 254
     GENDER_MAX_LEN = 1
+    TELEGRAM_ID_LEN = 30
     SINGLE_FIELDS = (
         "email", "phone",
         "first_name", "telegram_username",
         "gender", "month_budjet",
         "comment", "password",
+        "telegram_user_id",
     )
     GENDERS = (
         ("M", "Male"),
@@ -201,6 +210,13 @@ class CustomUser(
         db_index=True,
         unique=True,
         verbose_name="Имя пользователя Telegram"
+    )
+    telegram_user_id: BigIntegerField = BigIntegerField(
+        null=True,
+        blank=True,
+        unique=True,
+        db_index=True,
+        verbose_name="Идентификатор пользователя в телеграм"
     )
     gender: CharField = CharField(
         max_length=GENDER_MAX_LEN,
@@ -285,4 +301,18 @@ class CustomUser(
             self.datetime_deleted = None
             self.save(
                 update_fields=['datetime_deleted']
+            )
+
+    def save_remote_image(self, image_url: str) -> None:
+        """Save remote image for photo if it's not provided."""
+        if not self.photo:
+            resp: Response = get(url=image_url)
+            img_temp = NamedTemporaryFile(delete=True)
+            img_temp.write(resp.content)
+            img_temp.flush()
+
+            self.photo.save(
+                name=f"{self.email}.jpg",
+                content=File(img_temp),
+                save=True
             )
