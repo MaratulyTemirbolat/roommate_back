@@ -89,8 +89,8 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
         )
         req_districts: List[str] = query_params.get(
             "districts",
-            [""]
-        )
+            ""
+        ).split(",")
         district_ids: Tuple[int] = tuple((
             District.objects.filter(
                 **location_dict_params,
@@ -103,6 +103,7 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
 
     def get_params_queryset(
         self,
+        reqest: DRF_Request,
         **query_params: Dict[str, Any]
     ) -> QuerySet[CustomUser]:
         """Get queryset by filtering through the query_params."""
@@ -113,39 +114,45 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
 
         final_budjet: int = int(query_params.get(
             "month_budjet",
-            [CustomUser.objects.get_not_deleted().filter(
+            CustomUser.objects.get_not_deleted().filter(
                 is_active=True
-            ).aggregate(Max('month_budjet')).get("month_budjet__max", 0)]
-        )[0]) if not query_params.get("upper_budjet", False) \
+            ).aggregate(Max('month_budjet')).get("month_budjet__max", 0)
+        )) if not query_params.get("upper_budjet", False) \
             else int(
                 query_params.get(
                     "month_budjet",
-                    [CustomUser.objects.get_not_deleted().filter(
+                    CustomUser.objects.get_not_deleted().filter(
                         is_active=True
                     ).aggregate(Max('month_budjet')).get(
                         "month_budjet__max",
                         0
-                    ) * 1.2]
-                )[0]
+                    ) * 1.2
+                )
             )
         district_ids: Tuple[int] = self.__get_district_ids(**query_params)
         user_queryset: QuerySet[CustomUser] = CustomUser.objects.filter(
             **user_dict_params,
             month_budjet__lte=final_budjet,
-            districts__in=district_ids
+            districts__in=district_ids,
+            is_active_account=True,
+        ).exclude(
+            id=reqest.user.id
         ).prefetch_related(
             "districts",
             "districts__city",
-        )
+        ).order_by("-datetime_created").distinct()
         if user_queryset.count() == 0:
             user_queryset = CustomUser.objects.filter(
                 **user_dict_params,
                 month_budjet__lte=int(final_budjet*1.2),
-                districts__in=district_ids
+                districts__in=district_ids,
+                is_active_account=True
+            ).exclude(
+                id=reqest.user.id
             ).prefetch_related(
                 "districts",
                 "districts__city",
-            )
+            ).order_by("-datetime_created").distinct()
         return user_queryset
 
     def list(
@@ -155,9 +162,20 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
         **kwargs: Dict[Any, Any],
     ) -> DRF_Response:
         """Handle GET-request to provide list of users."""
+        validated_params: Dict[str, Any] = get_valid_request_data(
+            request_data=request.query_params,
+            single_keys=(
+                "gender", "month_budjet",
+                "city", "districts",
+            )
+        )
         response: DRF_Response = self.get_drf_response(
             request=request,
-            data=self.get_params_queryset(**request.query_params),
+            data=self.get_params_queryset(
+                reqest=request,
+                # **request.query_params
+                **validated_params
+            ),
             serializer_class=CustomUserListSerializer,
             many=True,
             paginator=AbstractPageNumberPaginator(),
@@ -195,6 +213,42 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
 
     @action(
         methods=["POST"],
+        url_path="add_districts",
+        detail=False,
+        permission_classes=(IsAuthenticated, IsNonDeletedUser,)
+    )
+    def add_districts(
+        self,
+        request: DRF_Request,
+        *args: Tuple[str],
+        **kwargs: Dict[str, Any]
+    ) -> DRF_Response:
+        """Handle POST-request for adding districts to the user."""
+        districts: List[str] = request.data.get(
+            "districts",
+            ""
+        ).split(",")
+        if len(districts) == 0:
+            return DRF_Response(
+                data={
+                    "response": "Извините, но вы не предоставили "
+                    "список районов"
+                },
+                status=HTTP_400_BAD_REQUEST
+            )
+        request.user.districts.clear()
+        request.user.districts.add(
+            *list(District.objects.filter(id__in=districts))
+        )
+        return DRF_Response(
+            data={
+                "response": "Выбранные вами районы успешно добавлены",
+            },
+            status=HTTP_200_OK
+        )
+
+    @action(
+        methods=["POST"],
         url_path="register_user",
         detail=False,
         permission_classes=(AllowAny,)
@@ -226,6 +280,10 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
             request_data=request.data.copy(),
             single_keys=CustomUser.SINGLE_FIELDS
         )
+        photo_url: Optional[str] = request.data.get(
+            "photo_url",
+            None
+        )
         serializer: CreateCustomUserSerializer = CreateCustomUserSerializer(
             data=resulted_data
         )
@@ -243,8 +301,21 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
                 **resulted_data,
                 is_staff=is_staff
             )
+            if photo_url:
+                new_cust_user.save_remote_image(
+                    image_url=photo_url
+                )
             new_cust_user.set_password(new_password)
             new_cust_user.save()
+            login(
+                request=request,
+                user=new_cust_user
+            )
+            self.add_districts(
+                request=request,
+                *args,
+                **kwargs
+            )
             refresh_token: RefreshToken = RefreshToken.for_user(
                 user=new_cust_user
             )
@@ -256,10 +327,6 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
             )
             response.data.setdefault("refresh", str(refresh_token))
             response.data.setdefault("access", str(refresh_token.access_token))
-            login(
-                request=request,
-                user=new_cust_user
-            )
             return response
         return DRF_Response(
             data=serializer.errors,
@@ -344,15 +411,19 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
 
     @action(
         methods=["PATCH"],
-        detail=True,
+        detail=False,
         url_path="deactivate",
         url_name="deactivate",
-        permission_classes=(IsNonDeletedUser, IsActiveAccount, IsOwnerUser,)
+        permission_classes=(
+            IsAuthenticated,
+            IsNonDeletedUser,
+            IsActiveAccount,
+            IsOwnerUser,
+        )
     )
     def deactivate_user(
         self,
         request: DRF_Request,
-        pk: str,
         *args: Tuple[Any],
         **kwargs: Dict[str, Any]
     ) -> DRF_Response:
@@ -361,14 +432,14 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
         is_existed: bool = False
         obj_resp, is_existed = self.get_obj_or_response(
             request=request,
-            pk=pk,
+            pk=request.user.id,
             class_name=CustomUser,
             queryset=self.queryset.get_not_deleted()
         )
         if not is_existed:
             return obj_resp
         self.check_object_permissions(request=request, obj=obj_resp)
-        if not obj_resp.is_active:
+        if not obj_resp.is_active_account:
             return DRF_Response(
                 data={
                     "response": "Ваш аккаунт уже итак деактивирован."
@@ -385,15 +456,18 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
 
     @action(
         methods=["PATCH"],
-        detail=True,
+        detail=False,
         url_path="activate",
         url_name="activate",
-        permission_classes=(IsNonDeletedUser, IsOwnerUser,)
+        permission_classes=(
+            IsAuthenticated,
+            IsNonDeletedUser,
+            IsOwnerUser,
+        )
     )
     def activate_user(
         self,
         request: DRF_Request,
-        pk: str,
         *args: Tuple[Any],
         **kwargs: Dict[str, Any]
     ) -> DRF_Response:
@@ -402,14 +476,14 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
         is_existed: bool = False
         obj_resp, is_existed = self.get_obj_or_response(
             request=request,
-            pk=pk,
+            pk=request.user.id,
             class_name=CustomUser,
             queryset=self.queryset.get_not_deleted()
         )
         if not is_existed:
             return obj_resp
         self.check_object_permissions(request=request, obj=obj_resp)
-        if obj_resp.is_active:
+        if obj_resp.is_active_account:
             return DRF_Response(
                 data={
                     "response": "Ваш аккаунт уже итак активирован."
@@ -428,7 +502,11 @@ class CustomUserViewSet(ModelInstanceMixin, DRFResponseHandler, ViewSet):
         methods=["GET"],
         url_path="personal_account",
         detail=False,
-        permission_classes=(IsAuthenticated, IsNonDeletedUser, )
+        permission_classes=(
+            IsAuthenticated,
+            IsNonDeletedUser,
+            IsActiveAccount,
+        )
     )
     def get_personal_account(
         self,
