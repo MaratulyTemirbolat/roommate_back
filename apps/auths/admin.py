@@ -72,6 +72,7 @@ class CustomUserAdmin(AbstractAdminIsDeleted, UserAdmin):
                 "fields": (
                     "first_name",
                     ("email", "telegram_username", "phone"),
+                    "telegram_user_id",
                     "gender",
                     "photo",
                     "get_photo",
@@ -93,6 +94,7 @@ class CustomUserAdmin(AbstractAdminIsDeleted, UserAdmin):
             {
                 "fields": (
                     ("is_superuser", "is_staff",),
+                    "is_active_account",
                     "is_active",
                     "user_permissions",
                 )
@@ -168,6 +170,8 @@ class CustomUserAdmin(AbstractAdminIsDeleted, UserAdmin):
                 "is_active",
                 "is_staff",
                 "photo",
-                "is_superuser"
+                "is_superuser",
+                "telegram_user_id",
+                "telegram_username",
             )
         return self.readonly_fields
