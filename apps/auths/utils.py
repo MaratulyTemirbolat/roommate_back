@@ -8,7 +8,7 @@ from typing import (
 
 def get_valid_request_data(
     request_data: Dict[str, Any],
-    single_keys: Tuple[str]
+    single_keys: Tuple[str],
 ) -> Dict[str, Any]:
     """Get valid request data."""
     resulted_data: Dict[str, Any] = {}
