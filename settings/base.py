@@ -40,6 +40,7 @@ PROJECT_APPS = [
     "abstracts.apps.AbstractsConfig",
     "auths.apps.AuthsConfig",
     "locations.apps.LocationsConfig",
+    "events.apps.EventsConfig",
 ]
 INSTALLED_APPS = DJANGO_AND_THIRD_PARTY_APPS + PROJECT_APPS
 
