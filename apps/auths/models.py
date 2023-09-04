@@ -34,6 +34,7 @@ from django.db.models import (
 # Project
 from abstracts.models import AbstractDateTime
 from locations.models import District
+from events.models import SubCategory
 from auths.validators import validate_negative_price
 
 
@@ -248,6 +249,11 @@ class CustomUser(
         to=District,
         related_name="users",
         verbose_name="Районы"
+    )
+    hobby_categories: ManyToManyField = ManyToManyField(
+        to=SubCategory,
+        related_name="users",
+        verbose_name="Категории хобби"
     )
     is_staff: BooleanField = BooleanField(
         default=False,

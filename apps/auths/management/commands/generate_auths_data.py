@@ -24,6 +24,7 @@ from django.db.models import QuerySet
 # Project
 from auths.models import CustomUser
 from locations.models import District
+from events.models import SubCategory
 
 
 class Command(BaseCommand):
@@ -128,9 +129,16 @@ class Command(BaseCommand):
         users_cnt: int = 0
         obj: CustomUser
         is_created: bool = False
-        districts: QuerySet[District] = District.objects.all()
+        districts: QuerySet[District] | tuple[District] = \
+            District.objects.all()
         distr_number: int = districts.count()
         districts = tuple(districts)
+
+        hobby_subcategories: QuerySet[SubCategory] | tuple[SubCategory] = \
+            SubCategory.objects.all()
+        categories_number: int = hobby_subcategories.count()
+        hobby_subcategories = tuple(hobby_subcategories)
+
         _: int
         for _ in range(required_number):
 
@@ -162,9 +170,16 @@ class Command(BaseCommand):
             )
             if is_created:
                 districts_number: int = randint(1, distr_number)
+                categories_number: int = randint(1, categories_number)
+
                 distr: District
                 for distr in sample(districts, k=districts_number):
                     obj.districts.add(distr)
+
+                subcat: SubCategory
+                for subcat in sample(hobby_subcategories, k=categories_number):
+                    obj.hobby_categories.add(subcat)
+
                 users_cnt += 1
         print(f"{users_cnt} пользователей успешно созданы")
 
